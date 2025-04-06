@@ -1,0 +1,4 @@
+Use process.env.SUPABASE_URL and process.env.SUPABASE_ANON_KEY for database connections
+Never hardcode Supabase credentials
+Reference environment variables through Vercel's system
+Create a serverless function to expose Vercel's environmental variables

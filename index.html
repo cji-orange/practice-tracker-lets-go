@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Practice Tracker</title>
+    <!-- Include Supabase JS Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Include Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Basic Reset */
+        body, h1, h2, p, ul, li, form, button, input, select, label {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: sans-serif;
+        }
+
+        body {
+            padding: 20px;
+            background-color: #f4f4f4;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        /* Page Visibility */
+        .page {
+            display: none; /* Hidden by default */
+        }
+
+        .page.active {
+            display: block; /* Show active page */
+        }
+
+        /* --- Auth Page Styles --- */
+        #authPage h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        #authForm label {
+            display: block;
+            margin-bottom: 5px;
+        }
+
+        #authForm input[type="text"],
+        #authForm input[type="email"],
+        #authForm input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        #instrumentSelection fieldset {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+        }
+        #instrumentSelection legend {
+            padding: 0 5px;
+            font-weight: bold;
+        }
+        #instrumentSelection label {
+             display: inline-block; /* Changed for better spacing */
+             margin-right: 15px;
+             margin-bottom: 10px; /* Added margin */
+             font-weight: normal;
+        }
+
+        .auth-buttons {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+        }
+
+        .auth-buttons button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+
+        #signInBtn {
+            background-color: #007bff;
+            color: white;
+        }
+        #signUpBtn {
+            background-color: #28a745;
+            color: white;
+        }
+
+        #authToggle {
+            text-align: center;
+            margin-top: 15px;
+        }
+        #authToggle button {
+             background: none;
+             border: none;
+             color: #007bff;
+             text-decoration: underline;
+             cursor: pointer;
+        }
+
+
+        /* --- Dashboard Page Styles --- */
+        #dashboardPage h1, #dashboardPage h2 {
+            margin-bottom: 15px;
+        }
+        #userInfo p {
+            margin-bottom: 10px;
+        }
+        #userInstruments ul {
+            list-style: none;
+            padding-left: 20px;
+            margin-bottom: 20px;
+        }
+        .session-card {
+            border: 1px solid #eee;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+        }
+         #practiceChartContainer {
+             margin-top: 20px;
+             margin-bottom: 20px;
+             height: 300px; /* Give chart container height */
+         }
+        #createSessionBtn, #signOutBtn {
+            display: block;
+            width: auto; /* Changed width */
+            padding: 12px 25px;
+            margin: 20px auto 10px auto; /* Center buttons */
+            background-color: #17a2b8;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1.1em;
+            text-align: center;
+        }
+        #signOutBtn {
+             background-color: #dc3545;
+             width: auto;
+             margin: 10px auto 20px auto;
+        }
+
+        /* --- Practice Session Page Styles --- */
+        #practiceSessionPage h1 {
+            margin-bottom: 20px;
+        }
+        #practiceSessionForm label, #subsessionForm label {
+             display: block;
+             margin-bottom: 8px;
+             font-weight: bold;
+        }
+        #practiceSessionForm select, #practiceSessionForm input[type="date"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        #subsessionContainer {
+             margin-top: 30px;
+             padding-top: 20px;
+             border-top: 1px solid #eee;
+        }
+         #subsessionTabs button {
+             padding: 10px 15px;
+             margin-right: 5px;
+             border: 1px solid #ccc;
+             background-color: #eee;
+             cursor: pointer;
+             border-bottom: none; /* Remove bottom border for inactive tabs */
+             border-radius: 4px 4px 0 0;
+         }
+         #subsessionTabs button.active {
+             background-color: #fff;
+             border-bottom: 1px solid #fff; /* Match background */
+         }
+         .subsession-content {
+             border: 1px solid #ccc;
+             padding: 20px;
+             margin-top: -1px; /* Overlap with tab border */
+             border-radius: 0 4px 4px 4px;
+             display: none; /* Hide content by default */
+         }
+         .subsession-content.active {
+             display: block; /* Show active content */
+         }
+
+         #stopwatchDisplay {
+            font-size: 2em;
+            margin-bottom: 15px;
+            text-align: center;
+         }
+         #stopwatchControls button, #manualEntryForm button[type="submit"], #subsessionForm button[type="button"] {
+            padding: 8px 15px;
+            margin-right: 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+         }
+         #startStopBtn {
+             background-color: #28a745;
+             color: white;
+         }
+         #resetBtn {
+             background-color: #ffc107;
+             color: #333;
+         }
+         #submitStopwatchBtn, #manualEntryForm button[type="submit"], #subsessionForm button[type="button"] {
+             background-color: #007bff;
+             color: white;
+         }
+
+        #manualEntryForm input[type="number"],
+        #subsessionForm select,
+        #subsessionForm textarea {
+             width: 100%;
+             padding: 8px;
+             margin-bottom: 10px;
+             border: 1px solid #ccc;
+             border-radius: 4px;
+        }
+        #subsessionForm textarea {
+             height: 80px;
+             resize: vertical;
+        }
+
+         /* --- Utility Styles --- */
+        .error-message {
+            color: red;
+            font-size: 0.9em;
+            margin-top: 5px;
+            display: block; /* Ensure it takes space */
+        }
+        .hidden {
+            display: none;
+        }
+
+         /* Responsive */
+        @media (max-width: 600px) {
+            body { padding: 10px; }
+            .container { padding: 15px; }
+            .auth-buttons {
+                 flex-direction: column;
+             }
+             .auth-buttons button {
+                 width: 100%;
+                 margin-bottom: 10px;
+             }
+             #instrumentSelection label {
+                 display: block; /* Stack checkboxes */
+                 margin-right: 0;
+             }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+
+        <!-- Auth Page (Sign Up / Sign In) -->
+        <div id="authPage" class="page active">
+            <h1>Practice Tracker</h1>
+            <form id="authForm">
+                <div id="nameFields">
+                    <label for="firstName">First Name:</label>
+                    <input type="text" id="firstName" name="firstName" required>
+
+                    <label for="lastName">Last Name:</label>
+                    <input type="text" id="lastName" name="lastName" required>
+                </div>
+
+                <label for="email">Email:</label>
+                <input type="email" id="email" name="email" required>
+
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required minlength="6">
+                <small class="error-message hidden" id="passwordError"></small>
+
+                <div id="instrumentSelection">
+                     <fieldset>
+                         <legend>Select Instruments:</legend>
+                         <!-- Checkboxes will be populated by JS -->
+                         <div id="instrumentsCheckboxes"></div>
+                         <small class="error-message hidden" id="instrumentsError"></small>
+                     </fieldset>
+                 </div>
+
+                 <div class="auth-buttons">
+                    <button type="button" id="signInBtn">Sign In</button>
+                    <button type="button" id="signUpBtn">Sign Up</button>
+                 </div>
+                 <small class="error-message hidden" id="authError"></small>
+
+                <div id="authToggle">
+                     <span id="toggleMessage">Already have an account?</span>
+                     <button type="button" id="toggleAuthModeBtn">Sign In</button>
+                 </div>
+            </form>
+        </div>
+
+        <!-- Dashboard Page -->
+        <div id="dashboardPage" class="page">
+            <button id="signOutBtn" style="float: right;">Sign Out</button>
+            <h1>Dashboard</h1>
+            <div id="userInfo">
+                <h2>Welcome, <span id="userFirstName"></span>!</h2>
+                <p>Email: <span id="userEmail"></span></p>
+            </div>
+            <div id="userInstruments">
+                <h2>Your Instruments:</h2>
+                <ul id="instrumentList"></ul>
+            </div>
+            <h2>Recent Practice Sessions</h2>
+            <div id="recentSessions"></div>
+            <h2>Last 7 Days Practice</h2>
+             <div id="practiceChartContainer">
+                 <canvas id="practiceChart"></canvas>
+             </div>
+             <p>Average minutes per day (last 7 days): <span id="avgMinutes">0</span> min</p>
+
+            <button id="createSessionBtn">Create New Practice Session</button>
+        </div>
+
+        <!-- Practice Session Page -->
+        <div id="practiceSessionPage" class="page">
+            <button id="backToDashboardBtn" style="float: right;">Back to Dashboard</button>
+            <h1>Log Practice Session</h1>
+            <form id="practiceSessionForm">
+                <label for="sessionInstrument">Instrument:</label>
+                <select id="sessionInstrument" name="sessionInstrument" required></select>
+
+                <label for="sessionDate">Date:</label>
+                <input type="date" id="sessionDate" name="sessionDate" required>
+
+                <!-- Subsessions will be added here -->
+                <div id="subsessionList"></div>
+            </form>
+
+             <div id="subsessionContainer">
+                 <h2>Add Subsession</h2>
+                  <form id="subsessionForm">
+                     <label for="subsessionCategory">Category:</label>
+                     <select id="subsessionCategory" name="subsessionCategory" required>
+                         <!-- Options populated by JS -->
+                     </select>
+
+                     <label for="subsessionNotes">Notes:</label>
+                     <textarea id="subsessionNotes" name="subsessionNotes"></textarea>
+
+                     <div id="subsessionTabs">
+                         <button type="button" class="tab-button active" data-target="stopwatchContent">Stopwatch</button>
+                         <button type="button" class="tab-button" data-target="manualEntryContent">Manual Entry</button>
+                     </div>
+
+                     <div id="stopwatchContent" class="subsession-content active">
+                         <div id="stopwatchDisplay">00:00:00</div>
+                         <div id="stopwatchControls">
+                             <button type="button" id="startStopBtn">Start</button>
+                             <button type="button" id="resetBtn">Reset</button>
+                         </div>
+                         <input type="hidden" id="stopwatchMinutes" value="0">
+                         <button type="button" id="submitStopwatchBtn" style="margin-top: 15px;">Add Subsession (Stopwatch)</button>
+                     </div>
+
+                     <div id="manualEntryContent" class="subsession-content">
+                        <form id="manualEntryForm">
+                             <label for="manualMinutes">Minutes:</label>
+                             <input type="number" id="manualMinutes" name="manualMinutes" min="1" required>
+                             <button type="button" id="submitManualBtn">Add Subsession (Manual)</button>
+                        </form>
+                     </div>
+                      <small class="error-message hidden" id="subsessionError"></small>
+                 </form>
+            </div>
+             <p>Total Session Time: <span id="totalSessionTime">0</span> minutes</p>
+             <button type="button" id="finishSessionBtn" style="margin-top: 20px; background-color: #28a745; color: white; padding: 10px 20px;">Finish and Save Session</button>
+             <small class="error-message hidden" id="finishSessionError"></small>
+        </div>
+
+    </div> <!-- /container -->
+
+    <script>
+        // --- Constants and Variables ---
+        const supabaseUrl = '{{SUPABASE_URL}}';         // Placeholder, will be fetched
+        const supabaseKey = '{{SUPABASE_KEY}}';         // Placeholder, will be fetched
+        let supabase = null;
+        let currentUser = null;
+        let currentPracticeSessionId = null;
+        let currentSubsessions = []; // To hold subsessions before saving
+        let stopwatchInterval = null;
+        let stopwatchSeconds = 0;
+        let predefinedInstruments = [
+            'Oboe', 'Flute', 'Clarinet', 'Saxophone', 'Trumpet', 'Trombone',
+            'French Horn', 'Violin', 'Viola', 'Cello', 'Bass', 'Piano', 'Other'
+        ];
+         let predefinedCategories = [
+             'Warm-ups', 'Technique', 'Scales', 'Etudes', 'Repertoire',
+             'Sight-reading', 'Band Music', 'Orchestra Music', 'Theory', 'Other'
+         ];
+         let practiceChart = null;
+
+        // --- DOM Elements ---
+        const authPage = document.getElementById('authPage');
+        const dashboardPage = document.getElementById('dashboardPage');
+        const practiceSessionPage = document.getElementById('practiceSessionPage');
+
+        // Auth Page Elements
+        const authForm = document.getElementById('authForm');
+        const nameFields = document.getElementById('nameFields');
+        const firstNameInput = document.getElementById('firstName');
+        const lastNameInput = document.getElementById('lastName');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const instrumentSelection = document.getElementById('instrumentSelection');
+        const instrumentsCheckboxesDiv = document.getElementById('instrumentsCheckboxes');
+        const signInBtn = document.getElementById('signInBtn');
+        const signUpBtn = document.getElementById('signUpBtn');
+        const toggleAuthModeBtn = document.getElementById('toggleAuthModeBtn');
+        const toggleMessage = document.getElementById('toggleMessage');
+        const authError = document.getElementById('authError');
+        const passwordError = document.getElementById('passwordError');
+        const instrumentsError = document.getElementById('instrumentsError');
+
+        // Dashboard Elements
+        const signOutBtn = document.getElementById('signOutBtn');
+        const userFirstName = document.getElementById('userFirstName');
+        const userEmail = document.getElementById('userEmail');
+        const instrumentList = document.getElementById('instrumentList');
+        const recentSessionsDiv = document.getElementById('recentSessions');
+        const createSessionBtn = document.getElementById('createSessionBtn');
+         const practiceChartCanvas = document.getElementById('practiceChart');
+         const avgMinutesSpan = document.getElementById('avgMinutes');
+
+        // Practice Session Page Elements
+        const backToDashboardBtn = document.getElementById('backToDashboardBtn');
+        const sessionInstrumentSelect = document.getElementById('sessionInstrument');
+        const sessionDateInput = document.getElementById('sessionDate');
+        const subsessionListDiv = document.getElementById('subsessionList');
+        const subsessionContainer = document.getElementById('subsessionContainer');
+        const subsessionCategorySelect = document.getElementById('subsessionCategory');
+        const subsessionNotesInput = document.getElementById('subsessionNotes');
+        const subsessionTabs = document.getElementById('subsessionTabs');
+        const stopwatchContent = document.getElementById('stopwatchContent');
+        const manualEntryContent = document.getElementById('manualEntryContent');
+        const stopwatchDisplay = document.getElementById('stopwatchDisplay');
+        const startStopBtn = document.getElementById('startStopBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const stopwatchMinutesInput = document.getElementById('stopwatchMinutes');
+        const submitStopwatchBtn = document.getElementById('submitStopwatchBtn');
+        const manualMinutesInput = document.getElementById('manualMinutes');
+        const submitManualBtn = document.getElementById('submitManualBtn');
+        const subsessionError = document.getElementById('subsessionError');
+         const totalSessionTimeSpan = document.getElementById('totalSessionTime');
+         const finishSessionBtn = document.getElementById('finishSessionBtn');
+         const finishSessionError = document.getElementById('finishSessionError');
+
+        // --- Utility Functions ---
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(page => page.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+        }
+
+        function displayError(element, message) {
+            element.textContent = message;
+            element.classList.remove('hidden');
+        }
+
+        function clearError(element) {
+            element.textContent = '';
+            element.classList.add('hidden');
+        }
+
+        function formatTime(seconds) {
+            const hours = Math.floor(seconds / 3600).toString().padStart(2, '0');
+            const minutes = Math.floor((seconds % 3600) / 60).toString().padStart(2, '0');
+            const secs = (seconds % 60).toString().padStart(2, '0');
+            return `${hours}:${minutes}:${secs}`;
+        }
+
+        // --- Initialization ---
+        async function initializeApp() {
+             console.log("Initializing app...");
+             try {
+                 // Fetch Supabase config from the serverless function
+                 const response = await fetch('/api/vercel-env');
+                 if (!response.ok) {
+                     throw new Error(`Failed to fetch Supabase config: ${response.statusText}`);
+                 }
+                 const config = await response.json();
+
+                 if (!config.supabaseUrl || !config.supabaseKey) {
+                      throw new Error('Supabase URL or Key is missing in the config.');
+                 }
+
+                 // Initialize Supabase client
+                supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
+                 console.log("Supabase client initialized.");
+
+                 populateStaticData();
+
+                // Check initial auth state
+                 const { data: { session } } = await supabase.auth.getSession();
+                 if (session) {
+                     console.log("User session found on load.");
+                     currentUser = session.user;
+                     await loadDashboard();
+                 } else {
+                     console.log("No active session found on load.");
+                     setupAuthPage(); // Setup initial auth page state
+                     showPage('authPage');
+                 }
+
+                 // Listen for auth changes
+                 supabase.auth.onAuthStateChange(async (_event, session) => {
+                     console.log("Auth state changed:", _event);
+                     currentUser = session?.user ?? null;
+                     if (currentUser) {
+                         console.log("User logged in/session updated.");
+                         await loadDashboard();
+                     } else {
+                         console.log("User logged out.");
+                         // Reset state if needed
+                         resetAppState();
+                         setupAuthPage();
+                         showPage('authPage');
+                     }
+                 });
+
+            } catch (error) {
+                 console.error("Initialization failed:", error);
+                 displayError(authError, `Initialization failed: ${error.message}. Please check console and Vercel function logs.`);
+                 showPage('authPage'); // Show auth page even on init error
+            }
+        }
+
+         function populateStaticData() {
+             // Populate instrument checkboxes
+             instrumentsCheckboxesDiv.innerHTML = predefinedInstruments.map(inst => `
+                 <label>
+                     <input type="checkbox" name="instruments" value="${inst}"> ${inst}
+                 </label>
+             `).join('');
+
+             // Populate category dropdown
+             subsessionCategorySelect.innerHTML = predefinedCategories.map(cat => `
+                 <option value="${cat}">${cat}</option>
+             `).join('');
+
+             // Set default date for practice session
+             sessionDateInput.valueAsDate = new Date();
+         }
+
+         function resetAppState() {
+             // Reset forms, variables, UI elements when user logs out or session ends
+             currentUser = null;
+             currentPracticeSessionId = null;
+             currentSubsessions = [];
+             stopwatchSeconds = 0;
+             clearInterval(stopwatchInterval);
+             stopwatchInterval = null;
+             // Clear dashboard fields
+             userFirstName.textContent = '';
+             userEmail.textContent = '';
+             instrumentList.innerHTML = '';
+             recentSessionsDiv.innerHTML = '';
+             if (practiceChart) {
+                practiceChart.destroy();
+                practiceChart = null;
+             }
+             avgMinutesSpan.textContent = '0';
+             // Reset practice session page fields
+             // (Specific fields reset when navigating to the page)
+             console.log("App state reset.");
+         }
+
+        // --- Auth Logic ---
+        function setupAuthPage(mode = 'signIn') {
+            clearError(authError);
+            clearError(passwordError);
+            clearError(instrumentsError);
+            authForm.reset(); // Clear form fields
+             // Uncheck all instrument boxes
+             instrumentsCheckboxesDiv.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+
+            if (mode === 'signIn') {
+                nameFields.classList.add('hidden');
+                instrumentSelection.classList.add('hidden');
+                firstNameInput.required = false;
+                lastNameInput.required = false;
+                signInBtn.classList.remove('hidden');
+                signUpBtn.classList.add('hidden');
+                toggleMessage.textContent = "Don't have an account?";
+                toggleAuthModeBtn.textContent = 'Sign Up';
+                toggleAuthModeBtn.dataset.mode = 'signUp';
+            } else { // signUp mode
+                nameFields.classList.remove('hidden');
+                instrumentSelection.classList.remove('hidden');
+                firstNameInput.required = true;
+                lastNameInput.required = true;
+                signInBtn.classList.add('hidden');
+                signUpBtn.classList.remove('hidden');
+                toggleMessage.textContent = "Already have an account?";
+                toggleAuthModeBtn.textContent = 'Sign In';
+                toggleAuthModeBtn.dataset.mode = 'signIn';
+            }
+        }
+
+        toggleAuthModeBtn.addEventListener('click', () => {
+            const nextMode = toggleAuthModeBtn.dataset.mode;
+            setupAuthPage(nextMode);
+        });
+
+         signInBtn.addEventListener('click', async () => {
+             clearError(authError);
+             clearError(passwordError);
+             clearError(instrumentsError);
+             const email = emailInput.value.trim();
+             const password = passwordInput.value.trim();
+
+             if (!email || !password) {
+                 displayError(authError, 'Please enter both email and password.');
+                 return;
+             }
+
+             console.log(`Attempting sign in for: ${email}`);
+             try {
+                 const { data, error } = await supabase.auth.signInWithPassword({
+                     email: email,
+                     password: password,
+                 });
+
+                 if (error) throw error;
+                 console.log("Sign in successful:", data);
+                 // Auth state change listener will handle navigation
+             } catch (error) {
+                 console.error("Sign in error:", error);
+                 displayError(authError, `Sign in failed: ${error.message}`);
+             }
+         });
+
+        signUpBtn.addEventListener('click', async () => {
+             clearError(authError);
+             clearError(passwordError);
+             clearError(instrumentsError);
+
+             const firstName = firstNameInput.value.trim();
+             const lastName = lastNameInput.value.trim();
+             const email = emailInput.value.trim();
+             const password = passwordInput.value.trim();
+             const selectedInstruments = Array.from(instrumentsCheckboxesDiv.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+
+             // Basic Validations
+             let validationPassed = true;
+             if (!firstName || !lastName || !email || !password) {
+                 displayError(authError, 'Please fill in all required fields.');
+                 validationPassed = false;
+             }
+             if (password.length < 6) {
+                 displayError(passwordError, 'Password must be at least 6 characters long.');
+                 validationPassed = false;
+             }
+            if (selectedInstruments.length === 0) {
+                 displayError(instrumentsError, 'Please select at least one instrument.');
+                 validationPassed = false;
+            }
+
+             if (!validationPassed) return;
+
+            console.log(`Attempting sign up for: ${email}`);
+            try {
+                 // 1. Sign up the user
+                 const { data: authData, error: authErrorData } = await supabase.auth.signUp({
+                     email: email,
+                     password: password,
+                     options: {
+                         data: { // Store first/last name in user_metadata
+                             first_name: firstName,
+                             last_name: lastName
+                         }
+                     }
+                 });
+
+                 if (authErrorData) throw authErrorData;
+                 if (!authData.user) throw new Error("Sign up completed but no user data returned.");
+
+                 console.log("Sign up successful, user created:", authData.user.id);
+                 const userId = authData.user.id;
+
+                 // 2. Ensure instruments exist in the Instruments table and get their IDs
+                 // Use upsert to add if not present, and select to get IDs
+                 const instrumentData = selectedInstruments.map(name => ({ name }));
+                 const { data: instrumentResult, error: instrumentError } = await supabase
+                     .from('Instruments')
+                     .upsert(instrumentData, { onConflict: 'name' })
+                     .select('id, name');
+
+                 if (instrumentError) throw new Error(`Failed to upsert instruments: ${instrumentError.message}`);
+                 console.log("Instruments upserted/fetched:", instrumentResult);
+
+                 // Create a map of name -> id for easier lookup
+                 const instrumentIdMap = instrumentResult.reduce((map, inst) => {
+                     map[inst.name] = inst.id;
+                     return map;
+                 }, {});
+
+                 // 3. Link instruments to the user in UserInstruments table
+                 const userInstrumentLinks = selectedInstruments.map(name => ({
+                     userId: userId,
+                     instrumentId: instrumentIdMap[name]
+                 }));
+
+                 const { error: userInstError } = await supabase
+                     .from('UserInstruments')
+                     .insert(userInstrumentLinks);
+
+                 if (userInstError) throw new Error(`Failed to link instruments to user: ${userInstError.message}`);
+
+                 console.log("User instruments linked successfully.");
+                 alert('Sign up successful! Please check your email to confirm your account.');
+                 // Stay on auth page, switch to sign-in mode after successful signup
+                 setupAuthPage('signIn');
+
+             } catch (error) {
+                 console.error("Sign up process error:", error);
+                 // Handle potential duplicate email error specifically
+                 if (error.message && error.message.includes('duplicate key value violates unique constraint')) {
+                    displayError(authError, 'Sign up failed: An account with this email already exists.');
+                 } else if (error.message && error.message.includes('check constraint "users_email_key"')) {
+                     displayError(authError, 'Sign up failed: An account with this email already exists.');
+                 } else {
+                    displayError(authError, `Sign up failed: ${error.message}`);
+                 }
+             }
+        });
+
+         signOutBtn.addEventListener('click', async () => {
+             console.log("Attempting sign out...");
+             const { error } = await supabase.auth.signOut();
+             if (error) {
+                 console.error("Sign out error:", error);
+                 alert(`Sign out failed: ${error.message}`);
+             } else {
+                 console.log("Sign out successful.");
+                 // Auth state listener handles UI changes
+             }
+         });
+
+        // --- Dashboard Logic ---
+        async function loadDashboard() {
+            if (!currentUser) {
+                showPage('authPage');
+                return;
+            }
+            console.log("Loading dashboard for user:", currentUser.id);
+            showPage('dashboardPage');
+
+            // Fetch user details (including metadata)
+             const { data: userData, error: userError } = await supabase
+                 .from('Users') // Assuming you have RLS setup or a public view for basic info
+                 .select('firstName, lastName, email')
+                 .eq('id', currentUser.id)
+                 .single(); // Use single() if you expect only one row
+
+            if (userError && userError.code !== 'PGRST116') { // PGRST116 = no rows found, might happen if profile isn't created yet
+                console.error("Error fetching user data:", userError);
+                 displayError(authError, "Could not load user data."); // Use authError temporarily
+            } else if (userData) {
+                 userFirstName.textContent = userData.firstName || 'User';
+                 userEmail.textContent = userData.email || currentUser.email;
+            } else {
+                 // Fallback to metadata if profile table is not populated or accessible yet
+                 userFirstName.textContent = currentUser.user_metadata?.first_name || 'User';
+                 userEmail.textContent = currentUser.email;
+            }
+
+            await loadUserInstruments();
+            await loadRecentSessions();
+            await loadChartData();
+        }
+
+        async function loadUserInstruments() {
+             console.log("Loading user instruments...");
+             try {
+                 // Fetch IDs of instruments linked to the user
+                 const { data: userInstData, error: userInstError } = await supabase
+                     .from('UserInstruments')
+                     .select('instrumentId')
+                     .eq('userId', currentUser.id);
+
+                 if (userInstError) throw userInstError;
+
+                 const instrumentIds = userInstData.map(ui => ui.instrumentId);
+                 instrumentList.innerHTML = ''; // Clear previous list
+
+                 if (instrumentIds.length > 0) {
+                     // Fetch names of these instruments
+                     const { data: instruments, error: instError } = await supabase
+                         .from('Instruments')
+                         .select('id, name')
+                         .in('id', instrumentIds);
+
+                     if (instError) throw instError;
+
+                     instruments.forEach(inst => {
+                         const li = document.createElement('li');
+                         li.textContent = inst.name;
+                         instrumentList.appendChild(li);
+                     });
+                     console.log("User instruments loaded:", instruments);
+                     populateInstrumentDropdown(instruments); // Populate dropdown for session page
+                 } else {
+                     instrumentList.innerHTML = '<li>No instruments selected yet.</li>';
+                      populateInstrumentDropdown([]); // Empty dropdown
+                     console.log("User has no instruments linked.");
+                 }
+            } catch (error) {
+                 console.error("Error loading user instruments:", error);
+                 instrumentList.innerHTML = '<li>Error loading instruments.</li>';
+                 populateInstrumentDropdown([]); // Empty dropdown on error
+            }
+        }
+
+        async function loadRecentSessions() {
+             console.log("Loading recent sessions...");
+             recentSessionsDiv.innerHTML = '<p>Loading sessions...</p>';
+             try {
+                 // Fetch user's instruments first to group sessions by them
+                 const { data: userInstData, error: userInstError } = await supabase
+                     .from('UserInstruments')
+                     .select(`
+                        instrumentId,
+                        Instruments ( id, name )
+                     `)
+                     .eq('userId', currentUser.id);
+
+                 if (userInstError) throw userInstError;
+                 if (!userInstData || userInstData.length === 0) {
+                      recentSessionsDiv.innerHTML = "<p>No instruments found to show sessions for.</p>";
+                      return;
+                 }
+
+                 recentSessionsDiv.innerHTML = ''; // Clear loading message
+
+                 // Fetch last 5 sessions for each instrument
+                 for (const userInstrument of userInstData) {
+                     const instrument = userInstrument.Instruments;
+                     if (!instrument) continue; // Skip if instrument data isn't joined correctly
+
+                     const { data: sessions, error: sessionsError } = await supabase
+                         .from('PracticeSessions')
+                         .select('id, date, totalMinutes')
+                         .eq('userId', currentUser.id)
+                         .eq('instrumentId', instrument.id)
+                         .order('date', { ascending: false })
+                         .limit(5);
+
+                     if (sessionsError) {
+                         console.error(`Error fetching sessions for ${instrument.name}:`, sessionsError);
+                         const errorP = document.createElement('p');
+                         errorP.textContent = `Could not load sessions for ${instrument.name}.`;
+                         recentSessionsDiv.appendChild(errorP);
+                         continue;
+                     }
+
+                     const instrumentHeader = document.createElement('h3');
+                     instrumentHeader.textContent = instrument.name;
+                     instrumentHeader.style.marginTop = '15px'; // Add spacing between instrument sections
+                     recentSessionsDiv.appendChild(instrumentHeader);
+
+                     if (sessions.length === 0) {
+                         const noSessionP = document.createElement('p');
+                         noSessionP.textContent = 'No recent practice sessions logged.';
+                         noSessionP.style.fontStyle = 'italic';
+                         recentSessionsDiv.appendChild(noSessionP);
+                     } else {
+                         sessions.forEach(session => {
+                             const card = document.createElement('div');
+                             card.className = 'session-card';
+                             card.innerHTML = `
+                                 <strong>Date:</strong> ${new Date(session.date).toLocaleDateString()} <br>
+                                 <strong>Duration:</strong> ${session.totalMinutes || 0} minutes
+                             `;
+                             recentSessionsDiv.appendChild(card);
+                         });
+                     }
+                 }
+                 console.log("Recent sessions loaded.");
+
+            } catch (error) {
+                 console.error("Error loading recent sessions:", error);
+                 recentSessionsDiv.innerHTML = '<p>Error loading recent sessions.</p>';
+            }
+        }
+
+         async function loadChartData() {
+            console.log("Loading chart data...");
+             if (!currentUser) return;
+
+             try {
+                 // Calculate date range (today and previous 6 days)
+                 const today = new Date();
+                 today.setHours(0, 0, 0, 0); // Start of today
+                 const sevenDaysAgo = new Date(today);
+                 sevenDaysAgo.setDate(today.getDate() - 6);
+
+                 const { data: sessions, error } = await supabase
+                     .from('PracticeSessions')
+                     .select('date, totalMinutes')
+                     .eq('userId', currentUser.id)
+                     .gte('date', sevenDaysAgo.toISOString().split('T')[0]) // Greater than or equal to start of 7 days ago
+                     .lte('date', today.toISOString().split('T')[0]); // Less than or equal to today
+
+                 if (error) throw error;
+
+                 // Prepare data for Chart.js
+                 const labels = [];
+                 const dailyMinutes = {};
+                 let totalMinutes = 0;
+
+                 // Initialize dailyMinutes for the last 7 days
+                 for (let i = 0; i < 7; i++) {
+                     const date = new Date(today);
+                     date.setDate(today.getDate() - i);
+                     const dateString = date.toISOString().split('T')[0];
+                     labels.unshift(date.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' })); // Add label (e.g., "Mon 15")
+                     dailyMinutes[dateString] = 0;
+                 }
+
+                 // Aggregate minutes per day
+                 sessions.forEach(session => {
+                     const sessionDate = session.date; // Already in YYYY-MM-DD format from Supabase
+                     if (dailyMinutes.hasOwnProperty(sessionDate)) {
+                         dailyMinutes[sessionDate] += (session.totalMinutes || 0);
+                     }
+                     totalMinutes += (session.totalMinutes || 0);
+                 });
+
+                 const chartData = labels.map(label => {
+                     // Find the date string corresponding to the label (need to reverse the logic from label creation)
+                     // This is a bit complex, safer to use the dateString keys directly
+                     const dateKey = Object.keys(dailyMinutes).find(d =>
+                          new Date(d + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', day: 'numeric' }) === label
+                     );
+                     return dateKey ? dailyMinutes[dateKey] : 0;
+                 });
+
+                  // Calculate average
+                 const avgMinutes = totalMinutes / 7;
+                 avgMinutesSpan.textContent = avgMinutes.toFixed(1);
+
+                 renderChart(labels, chartData);
+                 console.log("Chart data loaded and rendered.");
+
+            } catch (error) {
+                 console.error("Error loading chart data:", error);
+                 practiceChartContainer.innerHTML = '<p>Error loading practice chart data.</p>';
+                 avgMinutesSpan.textContent = 'N/A';
+            }
+        }
+
+         function renderChart(labels, data) {
+             const ctx = practiceChartCanvas.getContext('2d');
+
+             // Destroy previous chart instance if it exists
+             if (practiceChart) {
+                 practiceChart.destroy();
+             }
+
+             practiceChart = new Chart(ctx, {
+                 type: 'bar', // Bar chart
+                 data: {
+                     labels: labels, // X-axis labels (days)
+                     datasets: [{
+                         label: 'Minutes Practiced',
+                         data: data, // Y-axis data (minutes)
+                         backgroundColor: 'rgba(54, 162, 235, 0.6)', // Blue bars
+                         borderColor: 'rgba(54, 162, 235, 1)',
+                         borderWidth: 1
+                     }]
+                 },
+                 options: {
+                     responsive: true,
+                     maintainAspectRatio: false, // Allow chart to fill container height
+                     scales: {
+                         y: {
+                             beginAtZero: true,
+                             title: {
+                                 display: true,
+                                 text: 'Minutes'
+                             }
+                         },
+                         x: {
+                              title: {
+                                 display: true,
+                                 text: 'Date'
+                             }
+                         }
+                     },
+                     plugins: {
+                         legend: {
+                             display: false // Hide legend if only one dataset
+                         },
+                         tooltip: {
+                             callbacks: {
+                                 label: function(context) {
+                                     let label = context.dataset.label || '';
+                                     if (label) {
+                                         label += ': ';
+                                     }
+                                     if (context.parsed.y !== null) {
+                                         label += context.parsed.y + ' minutes';
+                                     }
+                                     return label;
+                                 }
+                             }
+                         }
+                     }
+                 }
+             });
+         }
+
+        // --- Practice Session Logic ---
+         createSessionBtn.addEventListener('click', () => {
+            console.log("Navigating to create practice session page.");
+             resetPracticeSessionPage(); // Reset the form before showing
+             showPage('practiceSessionPage');
+         });
+
+         backToDashboardBtn.addEventListener('click', async () => {
+             // Optional: Ask for confirmation if a session is partially filled but not saved?
+             // For now, just navigate back and potentially discard unsaved changes.
+             console.log("Navigating back to dashboard.");
+             currentPracticeSessionId = null; // Discard any temporary session ID
+             currentSubsessions = []; // Discard unsaved subsessions
+             await loadDashboard(); // Reload dashboard data
+             showPage('dashboardPage');
+         });
+
+         function populateInstrumentDropdown(instruments) {
+             sessionInstrumentSelect.innerHTML = instruments.map(inst =>
+                 `<option value="${inst.id}">${inst.name}</option>`
+             ).join('');
+             if (instruments.length === 0) {
+                 sessionInstrumentSelect.innerHTML = '<option value="">-- No instruments available --</option>';
+             }
+         }
+
+         function resetPracticeSessionPage() {
+             // Reset main session form
+             sessionInstrumentSelect.selectedIndex = 0;
+             sessionDateInput.valueAsDate = new Date(); // Set to today
+             clearError(finishSessionError);
+
+             // Reset subsession state
+             currentPracticeSessionId = null; // No active session being built yet
+             currentSubsessions = [];
+             subsessionListDiv.innerHTML = ''; // Clear displayed subsessions
+             totalSessionTimeSpan.textContent = '0';
+
+            resetSubsessionForm();
+             console.log("Practice session page reset.");
+         }
+
+         function resetSubsessionForm() {
+             // Reset subsession form fields
+             subsessionCategorySelect.selectedIndex = 0;
+             subsessionNotesInput.value = '';
+             manualMinutesInput.value = '';
+             resetStopwatch();
+             clearError(subsessionError);
+             // Ensure stopwatch tab is active by default
+             switchSubsessionTab('stopwatchContent');
+         }
+
+        // Subsession Tabs
+        subsessionTabs.addEventListener('click', (e) => {
+             if (e.target.classList.contains('tab-button')) {
+                 const targetId = e.target.dataset.target;
+                 switchSubsessionTab(targetId);
+             }
+        });
+
+         function switchSubsessionTab(targetId) {
+             // Deactivate all tabs and content
+             subsessionTabs.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('active'));
+             document.querySelectorAll('.subsession-content').forEach(content => content.classList.remove('active'));
+
+             // Activate the selected tab and content
+             subsessionTabs.querySelector(`[data-target="${targetId}"]`).classList.add('active');
+             document.getElementById(targetId).classList.add('active');
+         }
+
+        // Stopwatch Logic
+        startStopBtn.addEventListener('click', () => {
+            if (stopwatchInterval) { // Currently running -> Stop
+                 clearInterval(stopwatchInterval);
+                 stopwatchInterval = null;
+                 startStopBtn.textContent = 'Start';
+                 startStopBtn.style.backgroundColor = '#28a745'; // Green
+                 console.log(`Stopwatch stopped at ${stopwatchSeconds} seconds.`);
+             } else { // Currently stopped -> Start
+                 stopwatchInterval = setInterval(() => {
+                     stopwatchSeconds++;
+                     stopwatchDisplay.textContent = formatTime(stopwatchSeconds);
+                 }, 1000);
+                 startStopBtn.textContent = 'Stop';
+                 startStopBtn.style.backgroundColor = '#dc3545'; // Red
+                 console.log("Stopwatch started.");
+             }
+        });
+
+        resetBtn.addEventListener('click', resetStopwatch);
+
+        function resetStopwatch() {
+            clearInterval(stopwatchInterval);
+            stopwatchInterval = null;
+            stopwatchSeconds = 0;
+            stopwatchDisplay.textContent = formatTime(0);
+            startStopBtn.textContent = 'Start';
+            startStopBtn.style.backgroundColor = '#28a745'; // Green
+            stopwatchMinutesInput.value = 0;
+            console.log("Stopwatch reset.");
+        }
+
+         submitStopwatchBtn.addEventListener('click', () => {
+             if (stopwatchInterval) { // Stop the timer if it's running before submitting
+                 clearInterval(stopwatchInterval);
+                 stopwatchInterval = null;
+                 startStopBtn.textContent = 'Start';
+                 startStopBtn.style.backgroundColor = '#28a745'; // Green
+             }
+
+             const minutes = Math.max(1, Math.round(stopwatchSeconds / 60)); // Use Math.round, ensure at least 1 minute if started
+              if (minutes === 0) {
+                  displayError(subsessionError, "Stopwatch time is zero. Please record some time.");
+                  return;
+              }
+
+             const category = subsessionCategorySelect.value;
+             const notes = subsessionNotesInput.value.trim();
+
+             addTemporarySubsession(category, minutes, notes);
+             resetSubsessionForm(); // Reset form including stopwatch
+         });
+
+         submitManualBtn.addEventListener('click', () => {
+             const minutes = parseInt(manualMinutesInput.value, 10);
+             const category = subsessionCategorySelect.value;
+             const notes = subsessionNotesInput.value.trim();
+
+             if (isNaN(minutes) || minutes < 1) {
+                 displayError(subsessionError, "Please enter a valid number of minutes (at least 1).");
+                 return;
+             }
+
+             addTemporarySubsession(category, minutes, notes);
+             resetSubsessionForm();
+         });
+
+         function addTemporarySubsession(category, minutes, notes) {
+             clearError(subsessionError);
+             const subsession = {
+                // No ID needed yet, just storing temporarily
+                 category: category,
+                 minutes: minutes,
+                 notes: notes,
+                 // Store temporary client-side ID for potential removal
+                 tempId: `temp-${Date.now()}-${Math.random()}`
+             };
+             currentSubsessions.push(subsession);
+             console.log("Temporary subsession added:", subsession);
+             renderSubsessionList();
+             updateTotalSessionTime();
+         }
+
+         function renderSubsessionList() {
+             subsessionListDiv.innerHTML = ''; // Clear current list
+             if (currentSubsessions.length === 0) {
+                 subsessionListDiv.innerHTML = '<p style="font-style: italic; margin-bottom: 15px;">No subsessions added yet.</p>';
+                 return;
+             }
+
+             currentSubsessions.forEach((sub, index) => {
+                 const card = document.createElement('div');
+                 card.className = 'session-card'; // Reuse card style
+                 card.style.backgroundColor = '#e9ecef'; // Slightly different background
+                 card.innerHTML = `
+                    <strong>Category:</strong> ${sub.category}<br>
+                    <strong>Minutes:</strong> ${sub.minutes}<br>
+                    ${sub.notes ? `<strong>Notes:</strong> ${sub.notes.replace(/\n/g, '<br>')}<br>` : ''}
+                    <button type="button" class="remove-subsession-btn" data-temp-id="${sub.tempId}" style="background-color: #dc3545; color: white; border: none; padding: 3px 8px; font-size: 0.8em; cursor: pointer; float: right; margin-top: -20px;">Remove</button>
+                 `;
+                 subsessionListDiv.appendChild(card);
+             });
+
+             // Add event listeners to remove buttons
+             subsessionListDiv.querySelectorAll('.remove-subsession-btn').forEach(button => {
+                 button.addEventListener('click', (e) => {
+                     const tempIdToRemove = e.target.dataset.tempId;
+                     removeTemporarySubsession(tempIdToRemove);
+                 });
+             });
+         }
+
+         function removeTemporarySubsession(tempId) {
+             currentSubsessions = currentSubsessions.filter(sub => sub.tempId !== tempId);
+             console.log(`Removed temporary subsession with tempId: ${tempId}`);
+             renderSubsessionList();
+             updateTotalSessionTime();
+         }
+
+        function updateTotalSessionTime() {
+            const totalMinutes = currentSubsessions.reduce((sum, sub) => sum + sub.minutes, 0);
+            totalSessionTimeSpan.textContent = totalMinutes;
+        }
+
+        finishSessionBtn.addEventListener('click', async () => {
+            clearError(finishSessionError);
+            if (!currentUser) {
+                 displayError(finishSessionError, "You must be logged in to save a session.");
+                 return;
+            }
+            if (currentSubsessions.length === 0) {
+                 displayError(finishSessionError, "Please add at least one subsession before saving.");
+                 return;
+            }
+
+            const instrumentId = sessionInstrumentSelect.value;
+            const sessionDate = sessionDateInput.value;
+            const totalMinutes = currentSubsessions.reduce((sum, sub) => sum + sub.minutes, 0);
+
+            if (!instrumentId || !sessionDate) {
+                 displayError(finishSessionError, "Please select an instrument and date.");
+                 return;
+            }
+
+            console.log("Attempting to save practice session...");
+            finishSessionBtn.disabled = true;
+            finishSessionBtn.textContent = 'Saving...';
+
+            try {
+                 // 1. Insert the main Practice Session
+                 const { data: sessionData, error: sessionError } = await supabase
+                     .from('PracticeSessions')
+                     .insert({
+                         userId: currentUser.id,
+                         instrumentId: parseInt(instrumentId, 10),
+                         date: sessionDate,
+                         totalMinutes: totalMinutes
+                     })
+                     .select('id') // Select the ID of the newly created session
+                     .single(); // Expecting a single row back
+
+                 if (sessionError) throw new Error(`Failed to save practice session: ${sessionError.message}`);
+                 if (!sessionData || !sessionData.id) throw new Error("Failed to get PracticeSession ID after insert.");
+
+                 const newSessionId = sessionData.id;
+                 console.log("Practice session saved with ID:", newSessionId);
+
+                 // 2. Prepare and insert Subsessions linked to the main session
+                 const subsessionsToInsert = currentSubsessions.map(sub => ({
+                     sessionId: newSessionId,
+                     category: sub.category,
+                     minutes: sub.minutes,
+                     notes: sub.notes
+                 }));
+
+                 const { error: subsessionInsertError } = await supabase
+                     .from('PracticeSubsessions')
+                     .insert(subsessionsToInsert);
+
+                 if (subsessionInsertError) {
+                     // Attempt to delete the parent session if subsessions fail?
+                     // For now, just report the error.
+                     console.error("Failed to save subsessions, main session was created (ID: ${newSessionId}). Manual cleanup might be needed.", subsessionInsertError);
+                     throw new Error(`Failed to save subsessions: ${subsessionInsertError.message}`);
+                 }
+
+                 console.log("Subsessions saved successfully.");
+                 alert("Practice session saved successfully!");
+
+                 // Navigate back to dashboard and refresh
+                 await loadDashboard();
+                 showPage('dashboardPage');
+
+             } catch (error) {
+                 console.error("Error finishing session:", error);
+                 displayError(finishSessionError, `Error saving session: ${error.message}`);
+             } finally {
+                 finishSessionBtn.disabled = false;
+                 finishSessionBtn.textContent = 'Finish and Save Session';
+             }
+        });
+
+
+        // --- Run Initialization --- 
+        document.addEventListener('DOMContentLoaded', initializeApp);
+
+    </script>
+
+</body>
+</html> 
