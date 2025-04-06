@@ -707,16 +707,20 @@
                  console.log("Sign up successful, user created:", authData.user.id);
                  const userId = authData.user.id;
 
-                 // 2. Ensure instruments exist in the Instruments table and get their IDs
-                 // Use upsert to add if not present, and select to get IDs
-                 const instrumentData = selectedInstruments.map(name => ({ name }));
+                 // 2. Get the IDs of the selected instruments from the Instruments table
+                 console.log("Fetching IDs for selected instruments:", selectedInstruments);
                  const { data: instrumentResult, error: instrumentError } = await supabaseClient
                      .from('Instruments')
-                     .upsert(instrumentData, { onConflict: 'name' })
-                     .select('id, name');
+                     .select('id, name')
+                     .in('name', selectedInstruments); // Use .in() to fetch based on names
 
-                 if (instrumentError) throw new Error(`Failed to upsert instruments: ${instrumentError.message}`);
-                 console.log("Instruments upserted/fetched:", instrumentResult);
+                 if (instrumentError) throw new Error(`Failed to fetch instrument IDs: ${instrumentError.message}`);
+                 if (!instrumentResult || instrumentResult.length !== selectedInstruments.length) {
+                    // This case should ideally not happen if seeding is correct and UI only shows predefined ones
+                    console.error('Mismatch between selected instruments and fetched IDs', selectedInstruments, instrumentResult);
+                    throw new Error('Could not find all selected instruments in the database. Was the database seeded correctly?');
+                 }
+                 console.log("Instrument IDs fetched:", instrumentResult);
 
                  // Create a map of name -> id for easier lookup
                  const instrumentIdMap = instrumentResult.reduce((map, inst) => {
