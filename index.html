@@ -404,7 +404,7 @@
         // --- Constants and Variables ---
         const supabaseUrl = '{{SUPABASE_URL}}';         // Placeholder, will be fetched
         const supabaseKey = '{{SUPABASE_KEY}}';         // Placeholder, will be fetched
-        let supabase = null;
+        let supabaseClient = null;
         let currentUser = null;
         let currentPracticeSessionId = null;
         let currentSubsessions = []; // To hold subsessions before saving
@@ -514,13 +514,13 @@
                  }
 
                  // Initialize Supabase client
-                supabase = supabase.createClient(config.supabaseUrl, config.supabaseKey);
+                 supabaseClient = supabase.createClient(config.supabaseUrl, config.supabaseKey);
                  console.log("Supabase client initialized.");
 
                  populateStaticData();
 
                 // Check initial auth state
-                 const { data: { session } } = await supabase.auth.getSession();
+                 const { data: { session } } = await supabaseClient.auth.getSession();
                  if (session) {
                      console.log("User session found on load.");
                      currentUser = session.user;
@@ -532,7 +532,7 @@
                  }
 
                  // Listen for auth changes
-                 supabase.auth.onAuthStateChange(async (_event, session) => {
+                 supabaseClient.auth.onAuthStateChange(async (_event, session) => {
                      console.log("Auth state changed:", _event);
                      currentUser = session?.user ?? null;
                      if (currentUser) {
@@ -645,7 +645,7 @@
 
              console.log(`Attempting sign in for: ${email}`);
              try {
-                 const { data, error } = await supabase.auth.signInWithPassword({
+                 const { data, error } = await supabaseClient.auth.signInWithPassword({
                      email: email,
                      password: password,
                  });
@@ -690,7 +690,7 @@
             console.log(`Attempting sign up for: ${email}`);
             try {
                  // 1. Sign up the user
-                 const { data: authData, error: authErrorData } = await supabase.auth.signUp({
+                 const { data: authData, error: authErrorData } = await supabaseClient.auth.signUp({
                      email: email,
                      password: password,
                      options: {
@@ -710,7 +710,7 @@
                  // 2. Ensure instruments exist in the Instruments table and get their IDs
                  // Use upsert to add if not present, and select to get IDs
                  const instrumentData = selectedInstruments.map(name => ({ name }));
-                 const { data: instrumentResult, error: instrumentError } = await supabase
+                 const { data: instrumentResult, error: instrumentError } = await supabaseClient
                      .from('Instruments')
                      .upsert(instrumentData, { onConflict: 'name' })
                      .select('id, name');
@@ -730,7 +730,7 @@
                      instrumentId: instrumentIdMap[name]
                  }));
 
-                 const { error: userInstError } = await supabase
+                 const { error: userInstError } = await supabaseClient
                      .from('UserInstruments')
                      .insert(userInstrumentLinks);
 
@@ -756,7 +756,7 @@
 
          signOutBtn.addEventListener('click', async () => {
              console.log("Attempting sign out...");
-             const { error } = await supabase.auth.signOut();
+             const { error } = await supabaseClient.auth.signOut();
              if (error) {
                  console.error("Sign out error:", error);
                  alert(`Sign out failed: ${error.message}`);
@@ -776,7 +776,7 @@
             showPage('dashboardPage');
 
             // Fetch user details (including metadata)
-             const { data: userData, error: userError } = await supabase
+             const { data: userData, error: userError } = await supabaseClient
                  .from('Users') // Assuming you have RLS setup or a public view for basic info
                  .select('firstName, lastName, email')
                  .eq('id', currentUser.id)
@@ -803,7 +803,7 @@
              console.log("Loading user instruments...");
              try {
                  // Fetch IDs of instruments linked to the user
-                 const { data: userInstData, error: userInstError } = await supabase
+                 const { data: userInstData, error: userInstError } = await supabaseClient
                      .from('UserInstruments')
                      .select('instrumentId')
                      .eq('userId', currentUser.id);
@@ -815,7 +815,7 @@
 
                  if (instrumentIds.length > 0) {
                      // Fetch names of these instruments
-                     const { data: instruments, error: instError } = await supabase
+                     const { data: instruments, error: instError } = await supabaseClient
                          .from('Instruments')
                          .select('id, name')
                          .in('id', instrumentIds);
@@ -846,7 +846,7 @@
              recentSessionsDiv.innerHTML = '<p>Loading sessions...</p>';
              try {
                  // Fetch user's instruments first to group sessions by them
-                 const { data: userInstData, error: userInstError } = await supabase
+                 const { data: userInstData, error: userInstError } = await supabaseClient
                      .from('UserInstruments')
                      .select(`
                         instrumentId,
@@ -867,7 +867,7 @@
                      const instrument = userInstrument.Instruments;
                      if (!instrument) continue; // Skip if instrument data isn't joined correctly
 
-                     const { data: sessions, error: sessionsError } = await supabase
+                     const { data: sessions, error: sessionsError } = await supabaseClient
                          .from('PracticeSessions')
                          .select('id, date, totalMinutes')
                          .eq('userId', currentUser.id)
@@ -924,7 +924,7 @@
                  const sevenDaysAgo = new Date(today);
                  sevenDaysAgo.setDate(today.getDate() - 6);
 
-                 const { data: sessions, error } = await supabase
+                 const { data: sessions, error } = await supabaseClient
                      .from('PracticeSessions')
                      .select('date, totalMinutes')
                      .eq('userId', currentUser.id)
@@ -1261,7 +1261,7 @@
 
             try {
                  // 1. Insert the main Practice Session
-                 const { data: sessionData, error: sessionError } = await supabase
+                 const { data: sessionData, error: sessionError } = await supabaseClient
                      .from('PracticeSessions')
                      .insert({
                          userId: currentUser.id,
@@ -1286,7 +1286,7 @@
                      notes: sub.notes
                  }));
 
-                 const { error: subsessionInsertError } = await supabase
+                 const { error: subsessionInsertError } = await supabaseClient
                      .from('PracticeSubsessions')
                      .insert(subsessionsToInsert);
 
