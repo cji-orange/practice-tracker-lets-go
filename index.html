@@ -670,7 +670,7 @@
              const password = passwordInput.value.trim();
              const selectedInstruments = Array.from(instrumentsCheckboxesDiv.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
 
-             // Basic Validations
+             // Basic Validations (Keep these client-side for quick feedback)
              let validationPassed = true;
              if (!firstName || !lastName || !email || !password) {
                  displayError(authError, 'Please fill in all required fields.');
@@ -687,74 +687,55 @@
 
              if (!validationPassed) return;
 
-            console.log(`Attempting sign up for: ${email}`);
-            try {
-                 // 1. Sign up the user
-                 const { data: authData, error: authErrorData } = await supabaseClient.auth.signUp({
-                     email: email,
-                     password: password,
-                     options: {
-                         data: { // Store first/last name in user_metadata
-                             first_name: firstName,
-                             last_name: lastName
-                         }
+             console.log(`Invoking signup Edge Function for: ${email}`);
+             signUpBtn.disabled = true;
+             signUpBtn.textContent = 'Signing Up...';
+
+             try {
+                 // Invoke the Supabase Edge Function
+                 const { data, error } = await supabaseClient.functions.invoke('signup-with-instruments', {
+                     body: {
+                         firstName,
+                         lastName,
+                         email,
+                         password,
+                         selectedInstruments
                      }
                  });
 
-                 if (authErrorData) throw authErrorData;
-                 if (!authData.user) throw new Error("Sign up completed but no user data returned.");
-
-                 console.log("Sign up successful, user created:", authData.user.id);
-                 const userId = authData.user.id;
-
-                 // 2. Get the IDs of the selected instruments from the Instruments table
-                 console.log("Fetching IDs for selected instruments:", selectedInstruments);
-                 const { data: instrumentResult, error: instrumentError } = await supabaseClient
-                     .from('Instruments')
-                     .select('id, name')
-                     .in('name', selectedInstruments); // Use .in() to fetch based on names
-
-                 if (instrumentError) throw new Error(`Failed to fetch instrument IDs: ${instrumentError.message}`);
-                 if (!instrumentResult || instrumentResult.length !== selectedInstruments.length) {
-                    // This case should ideally not happen if seeding is correct and UI only shows predefined ones
-                    console.error('Mismatch between selected instruments and fetched IDs', selectedInstruments, instrumentResult);
-                    throw new Error('Could not find all selected instruments in the database. Was the database seeded correctly?');
+                 if (error) {
+                     console.error("Edge function invocation error:", error);
+                     // Attempt to parse the error response from the function if available
+                     let errorMessage = `Sign up failed: ${error.message}`;
+                     if (error.context && error.context.json) {
+                         errorMessage = error.context.json.error || errorMessage;
+                     }
+                     displayError(authError, errorMessage);
+                     throw new Error(errorMessage); // Re-throw to prevent further execution in catch
                  }
-                 console.log("Instrument IDs fetched:", instrumentResult);
 
-                 // Create a map of name -> id for easier lookup
-                 const instrumentIdMap = instrumentResult.reduce((map, inst) => {
-                     map[inst.name] = inst.id;
-                     return map;
-                 }, {});
+                 if (!data || !data.success) {
+                    console.error("Edge function returned failure:", data);
+                    const errorMessage = data?.error || 'Sign up failed due to an unknown server issue.';
+                    displayError(authError, errorMessage);
+                    throw new Error(errorMessage);
+                 }
 
-                 // 3. Link instruments to the user in UserInstruments table
-                 const userInstrumentLinks = selectedInstruments.map(name => ({
-                     userId: userId,
-                     instrumentId: instrumentIdMap[name]
-                 }));
-
-                 const { error: userInstError } = await supabaseClient
-                     .from('UserInstruments')
-                     .insert(userInstrumentLinks);
-
-                 if (userInstError) throw new Error(`Failed to link instruments to user: ${userInstError.message}`);
-
-                 console.log("User instruments linked successfully.");
+                 console.log("Edge function executed successfully. User ID:", data.userId);
                  alert('Sign up successful! Please check your email to confirm your account.');
                  // Stay on auth page, switch to sign-in mode after successful signup
                  setupAuthPage('signIn');
 
-             } catch (error) {
-                 console.error("Sign up process error:", error);
-                 // Handle potential duplicate email error specifically
-                 if (error.message && error.message.includes('duplicate key value violates unique constraint')) {
-                    displayError(authError, 'Sign up failed: An account with this email already exists.');
-                 } else if (error.message && error.message.includes('check constraint "users_email_key"')) {
-                     displayError(authError, 'Sign up failed: An account with this email already exists.');
-                 } else {
-                    displayError(authError, `Sign up failed: ${error.message}`);
+             } catch (err) {
+                 // Error is already logged and displayed in the invoke block or it's an unexpected error
+                 console.error("Sign up process error (catch block):", err);
+                 // Ensure the error message field shows something if not already set
+                 if (authError.classList.contains('hidden')) {
+                      displayError(authError, err.message || 'An unexpected error occurred during sign up.');
                  }
+             } finally {
+                 signUpBtn.disabled = false;
+                 signUpBtn.textContent = 'Sign Up';
              }
         });
 

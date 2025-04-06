@@ -6,7 +6,7 @@ A simple web application for musicians to log and track their instrument practic
 
 ## Features
 
-*   User Sign Up & Sign In (Supabase Auth)
+*   User Sign Up & Sign In (Supabase Auth, handled via Edge Function for robustness)
 *   Instrument selection during sign-up.
 *   Dashboard displaying user info, instruments, recent sessions per instrument, and a 7-day practice chart.
 *   Log new practice sessions with date and instrument.
@@ -17,7 +17,7 @@ A simple web application for musicians to log and track their instrument practic
 ## Technology Stack
 
 *   **Frontend:** HTML, CSS, Vanilla JavaScript
-*   **Backend/Database:** Supabase
+*   **Backend/Database:** Supabase (Auth, Database, Edge Functions)
 *   **Deployment:** Vercel
 *   **Libraries:**
     *   `@supabase/supabase-js`: For interacting with Supabase.
@@ -32,48 +32,86 @@ A simple web application for musicians to log and track their instrument practic
     *   Navigate to Project Settings > API.
     *   Find your **Project URL** (this is `SUPABASE_URL`).
     *   Find your **Project API Keys** > `anon` `public` key (this is `SUPABASE_ANON_KEY`).
+    *   Find your **Project API Keys** > `service_role` `secret` key (this is `SUPABASE_SERVICE_ROLE_KEY`). **Keep this secret!** It will be used by the Edge Function.
 3.  **Run SQL Schema:**
     *   Go to the SQL Editor in your Supabase dashboard.
     *   Create a "New query".
     *   Copy and paste the entire SQL script from the [Supabase Schema SQL](#supabase-schema-sql) section below into the editor.
-    *   Run the query to create the necessary tables (`Users`, `Instruments`, `UserInstruments`, `PracticeSessions`, `PracticeSubsessions`, `Categories`).
-4.  **(Optional but Recommended) Enable Row Level Security (RLS):**
-    *   Go to Authentication > Policies.
-    *   Enable RLS for each of the tables (`Users`, `Instruments`, `UserInstruments`, `PracticeSessions`, `PracticeSubsessions`, `Categories`).
-    *   Create policies to allow users to:
-        *   Read their own data (`Users`, `UserInstruments`, `PracticeSessions`, `PracticeSubsessions`).
-        *   Insert their own data (`UserInstruments`, `PracticeSessions`, `PracticeSubsessions`).
-        *   Read public data (`Instruments`, `Categories`).
-        *   (Sign Up): Allow anonymous users to insert into `Users` (Supabase handles this partly, but check RLS). Ensure `UserInstruments` insert is handled correctly post-signup.
-    *   *Note: The provided JavaScript assumes basic RLS allowing authenticated users to read/write their own data and read public instrument/category lists. You may need to refine these policies based on exact security requirements.* Refer to Supabase documentation for detailed RLS setup.
+    *   Run the query to create the necessary tables, functions, triggers, and RLS policies.
+4.  **(Important) Update RLS Policies for Public Tables:**
+    *   The initial schema contains policies restricting reads on `Instruments` and `Categories` to authenticated users. This can cause issues during signup *before* the user session is fully active for RLS.
+    *   Run the following SQL in your Supabase editor to allow public read access to these tables:
+      ```sql
+      -- Drop the old restricted read policies
+      DROP POLICY IF EXISTS "Allow authenticated read access" ON public."Instruments";
+      DROP POLICY IF EXISTS "Allow authenticated read access" ON public."Categories";
+
+      -- Create new policies allowing public read access
+      CREATE POLICY "Allow public read access" ON public."Instruments"
+          FOR SELECT USING (true); -- Allows anyone to SELECT
+
+      CREATE POLICY "Allow public read access" ON public."Categories"
+          FOR SELECT USING (true); -- Allows anyone to SELECT
+
+      -- Ensure RLS is still enabled (these commands won't hurt if already enabled)
+      ALTER TABLE public."Instruments" ENABLE ROW LEVEL SECURITY;
+      ALTER TABLE public."Categories" ENABLE ROW LEVEL SECURITY;
+      ```
+5.  **(Optional but Recommended) Review Other RLS Policies:**
+    *   Carefully review the RLS policies created by the main schema script for `Users`, `UserInstruments`, `PracticeSessions`, and `PracticeSubsessions`.
+    *   Ensure they correctly restrict access so users can only manage their *own* data.
+    *   Refer to Supabase documentation for detailed RLS guidance.
 
 ### 2. Local Development Setup
 
-1.  **Clone the Repository:**
+1.  **Install Supabase CLI:** If you haven't already, install the Supabase CLI: `npm install supabase --save-dev` (or globally `npm install -g supabase`). You might need Docker running for the CLI.
+2.  **Install Vercel CLI:** `npm install -g vercel`
+3.  **Clone the Repository:**
     ```bash
     git clone <your-repo-url>
     cd <your-repo-directory>
     ```
-2.  **Environment Variables:** The application fetches Supabase credentials via a Vercel serverless function (`/api/vercel-env.js`). For local development, you need a way to serve the `index.html` and emulate the Vercel environment.
-    *   **Using Vercel CLI:** The easiest way is to use the Vercel CLI.
-        *   Install Vercel CLI: `npm install -g vercel`
-        *   Link your project: `vercel link` (Follow prompts)
-        *   Set environment variables locally: `vercel env add SUPABASE_URL` (Paste your URL) and `vercel env add SUPABASE_ANON_KEY` (Paste your anon key). Select "Development" environment.
-        *   Pull environment variables: `vercel env pull .env.development.local`
-        *   Run the development server: `vercel dev`
-        *   This will start a local server (usually on `http://localhost:3000`) that serves `index.html` and runs the serverless function using the `.env.development.local` variables.
-    *   **Using other local servers:** If you use a different local server (like `live-server` or Python's `http.server`), the call to `/api/vercel-env` will likely fail unless you specifically configure a proxy or mock the endpoint. Using `vercel dev` is recommended.
+4.  **Link Supabase Project:** `supabase login`, then `supabase link --project-ref <your-project-id>` (Find Project ID in Supabase project settings URL).
+5.  **Link Vercel Project:** `vercel link` (Follow prompts)
+6.  **Set Environment Variables Locally:**
+    *   **Vercel:**
+        *   `vercel env add SUPABASE_URL` (Paste your Project URL)
+        *   `vercel env add SUPABASE_ANON_KEY` (Paste your `anon` public key)
+        *   Select "Development" environment for both.
+    *   **Supabase (for Edge Function):**
+        *   Create a file named `.env.local` in the `supabase/functions` directory (or project root if preferred by your setup).
+        *   Add the following lines, replacing placeholders with your actual credentials:
+          ```
+          SUPABASE_URL=your-project-url
+          SUPABASE_ANON_KEY=your-anon-public-key
+          SUPABASE_SERVICE_ROLE_KEY=your-service-role-secret-key
+          ```
+        *   *Note:* The Supabase CLI uses these `.env.local` variables when running functions locally.
+7.  **Pull Vercel Environment Variables:** `vercel env pull .env.development.local` (This creates a file Vercel uses for `vercel dev`).
+8.  **Run Development Server:**
+    *   Use the Supabase CLI to serve functions *and* `vercel dev` to serve the frontend and proxy functions:
+    *   **Terminal 1:** `supabase start` (Starts Supabase services locally, including functions) - *May require Docker*. Wait for it to fully start.
+    *   **Terminal 2:** `supabase functions serve --env-file ./supabase/.env.local` (Serves your edge functions, watching for changes).
+    *   **Terminal 3:** `vercel dev` (Serves `index.html` and uses the Vercel env vars).
+    *   Access the app via the `vercel dev` URL (usually `http://localhost:3000`).
+    *   *Alternative:* If `supabase start` is too heavy, you might be able to skip it and just use `supabase functions serve` alongside `vercel dev`, relying on your *remote* Supabase instance. Ensure function environment variables are set correctly for this.
 
-### 3. Deployment to Vercel
+### 3. Deployment to Vercel & Supabase
 
-1.  **Push to Git:** Ensure your code is pushed to a Git repository (GitHub, GitLab, Bitbucket).
-2.  **Import Project:** Go to your Vercel dashboard and import the project from your Git repository.
-3.  **Configure Environment Variables:**
-    *   In the Vercel project settings, navigate to "Environment Variables".
-    *   Add `SUPABASE_URL` with your Supabase Project URL.
-    *   Add `SUPABASE_ANON_KEY` with your Supabase `anon` public key.
-    *   Ensure these variables are available for the **Production** environment (and Preview/Development if needed).
-4.  **Deploy:** Vercel should automatically detect the setup and deploy. The serverless function in `/api` will use the configured environment variables.
+1.  **Push to Git:** Ensure your code, including the `supabase` directory, is pushed to a Git repository (GitHub, GitLab, Bitbucket).
+2.  **Deploy Supabase Function:**
+    *   Link Supabase project if not done: `supabase login`, `supabase link --project-ref <your-project-id>`.
+    *   Set secrets for the function: `supabase secrets set --env-file ./supabase/.env.local` (This securely uploads your SERVICE_ROLE_KEY etc. to Supabase for the functions).
+    *   Deploy the function: `supabase functions deploy signup-with-instruments`.
+3.  **Deploy Vercel Frontend:**
+    *   Import project in Vercel dashboard from your Git repository.
+    *   **Configure Vercel Environment Variables:**
+        *   In the Vercel project settings, navigate to "Environment Variables".
+        *   Add `SUPABASE_URL` with your Supabase Project URL.
+        *   Add `SUPABASE_ANON_KEY` with your Supabase `anon` public key.
+        *   Ensure these are available for **Production** (and Preview/Development).
+        *   **DO NOT** add `SUPABASE_SERVICE_ROLE_KEY` here. It's only needed by the Supabase function itself, which reads it from the secrets you set via the Supabase CLI.
+    *   **Deploy:** Vercel should automatically detect the setup and deploy the frontend. The frontend will call the deployed Supabase function (`/functions/v1/signup-with-instruments`) and the Vercel function (`/api/vercel-env`).
 
 ## Supabase Schema SQL
 
@@ -181,28 +219,28 @@ CREATE INDEX idx_practicesubsessions_sessionid ON public."PracticeSubsessions"("
 -- IMPORTANT: Review and adapt these policies carefully based on your security needs.
 
 ALTER TABLE public."Users" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public."Instruments" ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public."Instruments" ENABLE ROW LEVEL SECURITY; -- RLS enabled later with public read
 ALTER TABLE public."UserInstruments" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public."PracticeSessions" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public."PracticeSubsessions" ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public."Categories" ENABLE ROW LEVEL SECURITY;
+-- ALTER TABLE public."Categories" ENABLE ROW LEVEL SECURITY; -- RLS enabled later with public read
 
 -- Users: Can see their own profile
 CREATE POLICY "Allow individual user read access" ON public."Users"
     FOR SELECT USING (auth.uid() = id);
 
--- Instruments: All authenticated users can read
-CREATE POLICY "Allow authenticated read access" ON public."Instruments"
-    FOR SELECT TO authenticated USING (true);
+-- Instruments: Policy changed - see Setup step 4
+-- CREATE POLICY "Allow authenticated read access" ON public."Instruments"
+--    FOR SELECT TO authenticated USING (true);
 
--- Categories: All authenticated users can read
-CREATE POLICY "Allow authenticated read access" ON public."Categories"
-    FOR SELECT TO authenticated USING (true);
+-- Categories: Policy changed - see Setup step 4
+-- CREATE POLICY "Allow authenticated read access" ON public."Categories"
+--    FOR SELECT TO authenticated USING (true);
 
 -- UserInstruments: Users can see their own linked instruments
 CREATE POLICY "Allow individual user read access" ON public."UserInstruments"
     FOR SELECT USING (auth.uid() = "userId");
--- Users can insert their own instrument links (used during signup process)
+-- Users can insert their own instrument links (Handled by Edge Function now, but policy is good practice)
 CREATE POLICY "Allow individual user insert" ON public."UserInstruments"
     FOR INSERT WITH CHECK (auth.uid() = "userId");
 -- Users can delete their own instrument links (optional - add if needed)
@@ -247,16 +285,16 @@ CREATE POLICY "Allow individual user insert" ON public."PracticeSubsessions"
 -- Users can delete their own subsessions (optional)
 -- CREATE POLICY "Allow individual user delete" ON public."PracticeSubsessions"
 --     FOR DELETE USING (auth.uid() = (SELECT ps."userId" FROM public."PracticeSessions" ps WHERE ps.id = "sessionId"));
-
 ```
 
 ## Potential Improvements
 
-*   **More Robust Error Handling:** Add more specific error messages and user feedback.
+*   **More Robust Error Handling:** Add more specific error messages and user feedback (client and server-side).
+*   **Edge Function Error Handling:** Improve error handling within the edge function (e.g., attempt cleanup if linking fails after user creation).
 *   **Edit/Delete Functionality:** Allow users to edit or delete existing practice sessions and subsessions.
 *   **Instrument Management:** Add a dedicated section for users to add/remove instruments after sign-up.
 *   **Category Management:** Allow users to define custom categories.
 *   **Advanced Reporting:** More detailed charts and reports (e.g., progress over time per category).
 *   **UI/UX Enhancements:** Improve styling, add loading indicators, potentially use a simple framework or component library.
 *   **Input Validation:** Add more thorough client-side and potentially server-side (via RLS or edge functions) validation.
-# practice-tracker-lets-go
+*   **Transaction:** Wrap the user creation and instrument linking in the Edge Function within a database transaction for atomicity (though Supabase Auth operations might complicate standard transactions).
